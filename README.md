@@ -9,7 +9,7 @@ This node trains LoRAs on-the-fly from your images without leaving ComfyUI. SDXL
 
 No config files to edit, no command line. Just connect images and go.
 
-If this node saves you time or helps your workflow, consider [buying me a coffee](https://buymeacoffee.com/lorasandlenses). It's genuinely appreciated and helps me keep developing this as new models arrive and tech opportunities present themselves.
+If this node saves you time or helps your workflow, consider [buying me a coffee](https://buymeacoffee.com/lorasandlenses). Due to family circumstances I'm short on work right now, which is partly why I've had the time to build this. Donations are genuinely appreciated and help me keep developing this tool.
 
 ## Supported Models
 
