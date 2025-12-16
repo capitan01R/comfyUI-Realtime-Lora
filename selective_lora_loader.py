@@ -476,7 +476,11 @@ TIP: Use 'LoRA Loader + Analyzer' first to see which layers matter for YOUR LoRA
 Late layers (20-29) usually have the most effect.
 Try disabling early layers (0-9) to reduce style bleed while keeping identity."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, **kwargs):
+        # Get optional inputs from kwargs
+        lora_path_opt = kwargs.get("lora_path_opt")
+        analysis_json = kwargs.get("analysis_json")
+
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
@@ -629,7 +633,11 @@ class FLUXSelectiveLoRALoader:
 TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA.
 Double blocks (0-18) typically have more impact than single blocks (0-37)."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, **kwargs):
+        # Get optional inputs from kwargs
+        lora_path_opt = kwargs.get("lora_path_opt")
+        analysis_json = kwargs.get("analysis_json")
+
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
@@ -788,7 +796,11 @@ class WanSelectiveLoRALoader:
 
 TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, **kwargs):
+        # Get optional inputs from kwargs
+        lora_path_opt = kwargs.get("lora_path_opt")
+        analysis_json = kwargs.get("analysis_json")
+
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
@@ -936,7 +948,11 @@ class QwenSelectiveLoRALoader:
 
 TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, **kwargs):
+        # Get optional inputs from kwargs
+        lora_path_opt = kwargs.get("lora_path_opt")
+        analysis_json = kwargs.get("analysis_json")
+
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
