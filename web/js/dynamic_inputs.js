@@ -131,12 +131,12 @@ app.registerExtension({
 // Preset definitions for each selective loader
 const SELECTIVE_LOADER_PRESETS = {
     "SDXLSelectiveLoRALoader": {
-        blocks: ["text_encoder_1", "text_encoder_2", "input_4", "input_5", "input_7", "input_8", "unet_mid", "output_0", "output_1", "output_2", "output_3", "output_4", "output_5"],
+        blocks: ["text_encoder_1", "text_encoder_2", "input_4", "input_5", "input_7", "input_8", "unet_mid", "output_0", "output_1", "output_2", "output_3", "output_4", "output_5", "other_weights"],
         presets: {
             "Default": { enabled: "ALL", strength: 1.0 },
             "All Off": { enabled: [], strength: 0.0 },
             "Half Strength": { enabled: "ALL", strength: 0.5 },
-            "UNet Only": { enabled: ["input_4", "input_5", "input_7", "input_8", "unet_mid", "output_0", "output_1", "output_2", "output_3", "output_4", "output_5"], strength: 1.0 },
+            "UNet Only": { enabled: ["input_4", "input_5", "input_7", "input_8", "unet_mid", "output_0", "output_1", "output_2", "output_3", "output_4", "output_5", "other_weights"], strength: 1.0 },
             "High Impact": { enabled: ["input_7", "input_8", "unet_mid", "output_0", "output_1", "output_2"], strength: 1.0 },
             "Text Encoders Only": { enabled: ["text_encoder_1", "text_encoder_2"], strength: 1.0 },
             "Decoders Only": { enabled: ["output_0", "output_1", "output_2", "output_3", "output_4", "output_5"], strength: 1.0 },
@@ -147,14 +147,14 @@ const SELECTIVE_LOADER_PRESETS = {
         }
     },
     "ZImageSelectiveLoRALoader": {
-        blocks: Array.from({length: 30}, (_, i) => `layer_${i}`),
+        blocks: [...Array.from({length: 30}, (_, i) => `layer_${i}`), "other_weights"],
         presets: {
             "Default": { enabled: "ALL", strength: 1.0 },
             "All Off": { enabled: [], strength: 0.0 },
             "Half Strength": { enabled: "ALL", strength: 0.5 },
-            "Late Only (20-29)": { enabled: Array.from({length: 10}, (_, i) => `layer_${i + 20}`), strength: 1.0 },
-            "Mid-Late (15-29)": { enabled: Array.from({length: 15}, (_, i) => `layer_${i + 15}`), strength: 1.0 },
-            "Skip Early (10-29)": { enabled: Array.from({length: 20}, (_, i) => `layer_${i + 10}`), strength: 1.0 },
+            "Late Only (20-29)": { enabled: [...Array.from({length: 10}, (_, i) => `layer_${i + 20}`), "other_weights"], strength: 1.0 },
+            "Mid-Late (15-29)": { enabled: [...Array.from({length: 15}, (_, i) => `layer_${i + 15}`), "other_weights"], strength: 1.0 },
+            "Skip Early (10-29)": { enabled: [...Array.from({length: 20}, (_, i) => `layer_${i + 10}`), "other_weights"], strength: 1.0 },
             "Mid Only (10-19)": { enabled: Array.from({length: 10}, (_, i) => `layer_${i + 10}`), strength: 1.0 },
             "Peak Impact (18-25)": { enabled: Array.from({length: 8}, (_, i) => `layer_${i + 18}`), strength: 1.0 },
         }
@@ -162,14 +162,15 @@ const SELECTIVE_LOADER_PRESETS = {
     "FLUXSelectiveLoRALoader": {
         blocks: [
             ...Array.from({length: 19}, (_, i) => `double_${i}`),
-            ...Array.from({length: 38}, (_, i) => `single_${i}`)
+            ...Array.from({length: 38}, (_, i) => `single_${i}`),
+            "other_weights"
         ],
         presets: {
             "Default": { enabled: "ALL", strength: 1.0 },
             "All Off": { enabled: [], strength: 0.0 },
             "Half Strength": { enabled: "ALL", strength: 0.5 },
-            "Double Blocks Only": { enabled: Array.from({length: 19}, (_, i) => `double_${i}`), strength: 1.0 },
-            "Single Blocks Only": { enabled: Array.from({length: 38}, (_, i) => `single_${i}`), strength: 1.0 },
+            "Double Blocks Only": { enabled: [...Array.from({length: 19}, (_, i) => `double_${i}`), "other_weights"], strength: 1.0 },
+            "Single Blocks Only": { enabled: [...Array.from({length: 38}, (_, i) => `single_${i}`), "other_weights"], strength: 1.0 },
             "High Impact Double": { enabled: Array.from({length: 13}, (_, i) => `double_${i + 6}`), strength: 1.0 },
             "Core Double": { enabled: Array.from({length: 10}, (_, i) => `double_${i + 8}`), strength: 1.0 },
             "Face Focus": { enabled: ["double_7", "double_12", "double_16", "single_7", "single_12", "single_16", "single_20"], strength: 1.0 },
@@ -184,27 +185,27 @@ const SELECTIVE_LOADER_PRESETS = {
         }
     },
     "WanSelectiveLoRALoader": {
-        blocks: Array.from({length: 40}, (_, i) => `block_${i}`),
+        blocks: [...Array.from({length: 40}, (_, i) => `block_${i}`), "other_weights"],
         presets: {
             "Default": { enabled: "ALL", strength: 1.0 },
             "All Off": { enabled: [], strength: 0.0 },
             "Half Strength": { enabled: "ALL", strength: 0.5 },
-            "Late Only (30-39)": { enabled: Array.from({length: 10}, (_, i) => `block_${i + 30}`), strength: 1.0 },
-            "Mid-Late (20-39)": { enabled: Array.from({length: 20}, (_, i) => `block_${i + 20}`), strength: 1.0 },
-            "Skip Early (10-39)": { enabled: Array.from({length: 30}, (_, i) => `block_${i + 10}`), strength: 1.0 },
+            "Late Only (30-39)": { enabled: [...Array.from({length: 10}, (_, i) => `block_${i + 30}`), "other_weights"], strength: 1.0 },
+            "Mid-Late (20-39)": { enabled: [...Array.from({length: 20}, (_, i) => `block_${i + 20}`), "other_weights"], strength: 1.0 },
+            "Skip Early (10-39)": { enabled: [...Array.from({length: 30}, (_, i) => `block_${i + 10}`), "other_weights"], strength: 1.0 },
             "Mid Only (15-25)": { enabled: Array.from({length: 11}, (_, i) => `block_${i + 15}`), strength: 1.0 },
             "Early Only (0-19)": { enabled: Array.from({length: 20}, (_, i) => `block_${i}`), strength: 1.0 },
         }
     },
     "QwenSelectiveLoRALoader": {
-        blocks: Array.from({length: 60}, (_, i) => `block_${i}`),
+        blocks: [...Array.from({length: 60}, (_, i) => `block_${i}`), "other_weights"],
         presets: {
             "Default": { enabled: "ALL", strength: 1.0 },
             "All Off": { enabled: [], strength: 0.0 },
             "Half Strength": { enabled: "ALL", strength: 0.5 },
-            "Late Only (45-59)": { enabled: Array.from({length: 15}, (_, i) => `block_${i + 45}`), strength: 1.0 },
-            "Mid-Late (30-59)": { enabled: Array.from({length: 30}, (_, i) => `block_${i + 30}`), strength: 1.0 },
-            "Skip Early (15-59)": { enabled: Array.from({length: 45}, (_, i) => `block_${i + 15}`), strength: 1.0 },
+            "Late Only (45-59)": { enabled: [...Array.from({length: 15}, (_, i) => `block_${i + 45}`), "other_weights"], strength: 1.0 },
+            "Mid-Late (30-59)": { enabled: [...Array.from({length: 30}, (_, i) => `block_${i + 30}`), "other_weights"], strength: 1.0 },
+            "Skip Early (15-59)": { enabled: [...Array.from({length: 45}, (_, i) => `block_${i + 15}`), "other_weights"], strength: 1.0 },
             "Mid Only (20-40)": { enabled: Array.from({length: 21}, (_, i) => `block_${i + 20}`), strength: 1.0 },
             "Early Only (0-29)": { enabled: Array.from({length: 30}, (_, i) => `block_${i}`), strength: 1.0 },
         }
@@ -342,7 +343,9 @@ app.registerExtension({
                 const analysis = getAnalysisFromInput(node);
                 if (analysis && analysis.blocks) {
                     // Try to find this block's score
-                    const blockData = analysis.blocks[name];
+                    // Map widget name to analysis key (other_weights -> other)
+                    const analysisKey = name === "other_weights" ? "other" : name;
+                    const blockData = analysis.blocks[analysisKey];
                     if (blockData && typeof blockData.score === 'number') {
                         impactScore = blockData.score;
                     }

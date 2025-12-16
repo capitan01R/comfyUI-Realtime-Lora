@@ -127,6 +127,7 @@ SDXL_VALID_BLOCKS = {"text_encoder_1", "text_encoder_2", "input_4", "input_5", "
 
 SDXL_PRESETS = {
     "All Blocks": SDXL_VALID_BLOCKS.copy(),
+    "All Off": set(),  # All blocks disabled including other_weights
     "UNet Only": {"input_4", "input_5", "input_7", "input_8", "unet_mid", "output_0", "output_1", "output_2", "output_3", "output_4", "output_5"},
     "High Impact": {"input_7", "input_8", "unet_mid", "output_0", "output_1", "output_2"},
     "Text Encoders Only": {"text_encoder_1", "text_encoder_2"},
@@ -141,6 +142,7 @@ SDXL_PRESETS = {
 # Z-Image layer presets
 ZIMAGE_PRESETS = {
     "All Layers": set(range(30)),
+    "All Off": set(),  # All layers disabled including other_weights
     "Late Only (20-29)": set(range(20, 30)),
     "Mid-Late (15-29)": set(range(15, 30)),
     "Skip Early (10-29)": set(range(10, 30)),
@@ -171,6 +173,7 @@ FLUX_STYLE_BLOCKS = FLUX_ALL_BLOCKS - FLUX_FACE_BLOCKS
 
 FLUX_PRESETS = {
     "All Blocks": FLUX_ALL_BLOCKS.copy(),
+    "All Off": set(),  # All blocks disabled including other_weights
     "Double Blocks Only": {f"double_{i}" for i in range(19)},
     "Single Blocks Only": {f"single_{i}" for i in range(38)},
     "High Impact Double": {f"double_{i}" for i in range(6, 19)},  # double_6-18 tend to be highest
@@ -184,6 +187,7 @@ FLUX_PRESETS = {
 # Wan 2.2 block presets - 40 transformer blocks
 WAN_PRESETS = {
     "All Blocks": set(range(40)),
+    "All Off": set(),  # All blocks disabled including other_weights
     "Late Only (30-39)": set(range(30, 40)),
     "Mid-Late (20-39)": set(range(20, 40)),
     "Skip Early (10-39)": set(range(10, 40)),
@@ -195,6 +199,7 @@ WAN_PRESETS = {
 # Qwen-Image block presets - 60 transformer blocks
 QWEN_PRESETS = {
     "All Blocks": set(range(60)),
+    "All Off": set(),  # All blocks disabled including other_weights
     "Late Only (45-59)": set(range(45, 60)),
     "Mid-Late (30-59)": set(range(30, 60)),
     "Skip Early (15-59)": set(range(15, 60)),
@@ -274,6 +279,9 @@ class SDXLSelectiveLoRALoader:
                 "output_4_str": ("FLOAT", {"default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05}),
                 "output_5": ("BOOLEAN", {"default": True}),
                 "output_5_str": ("FLOAT", {"default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05}),
+                # Other weights (keys not matching known blocks)
+                "other_weights": ("BOOLEAN", {"default": True}),
+                "other_weights_str": ("FLOAT", {"default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05}),
             },
             "optional": {
                 "lora_path_opt": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer to use its selected LoRA"}),
@@ -300,6 +308,7 @@ output_1 is strongest for style/color, input_8/output_0 for composition."""
                   unet_mid, unet_mid_str,
                   output_0, output_0_str, output_1, output_1_str, output_2, output_2_str,
                   output_3, output_3_str, output_4, output_4_str, output_5, output_5_str,
+                  other_weights, other_weights_str,
                   lora_path_opt=None, analysis_json=None):
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
@@ -329,6 +338,9 @@ output_1 is strongest for style/color, input_8/output_0 for composition."""
             enabled_blocks = SDXL_PRESETS[preset].copy()
             # Presets use strength 1.0 for all enabled blocks
             block_strengths = {b: 1.0 for b in enabled_blocks}
+            # All Off preset disables other_weights too
+            other_enabled = preset != "All Off"
+            other_str = 1.0
             using_preset = preset
         else:
             # Build from individual toggles and strengths
@@ -338,6 +350,8 @@ output_1 is strongest for style/color, input_8/output_0 for composition."""
                 if enabled:
                     enabled_blocks.add(block_id)
                     block_strengths[block_id] = blk_str
+            other_enabled = other_weights
+            other_str = other_weights_str
             using_preset = None
 
         # Load LoRA - use optional path if provided, otherwise use dropdown selection
@@ -360,8 +374,8 @@ output_1 is strongest for style/color, input_8/output_0 for composition."""
             if block_id in enabled_blocks:
                 blk_str = block_strengths.get(block_id, 1.0)
                 filtered_dict[key] = value * blk_str if blk_str != 1.0 else value
-            elif block_id == 'other':
-                filtered_dict[key] = value
+            elif block_id == 'other' and other_enabled:
+                filtered_dict[key] = value * other_str if other_str != 1.0 else value
 
         original_count = len(lora_state_dict)
         filtered_count = len(filtered_dict)
@@ -438,6 +452,12 @@ class ZImageSelectiveLoRALoader:
                 "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
             })
 
+        # Other weights (keys not matching known layers)
+        inputs["required"]["other_weights"] = ("BOOLEAN", {"default": True})
+        inputs["required"]["other_weights_str"] = ("FLOAT", {
+            "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
+        })
+
         inputs["optional"] = {
             "lora_path_opt": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer to use its selected LoRA"}),
             "analysis_json": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer for impact-colored checkboxes"}),
@@ -456,13 +476,16 @@ TIP: Use 'LoRA Loader + Analyzer' first to see which layers matter for YOUR LoRA
 Late layers (20-29) usually have the most effect.
 Try disabling early layers (0-9) to reduce style bleed while keeping identity."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, other_weights, other_weights_str, lora_path_opt=None, analysis_json=None, **kwargs):
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
         if preset != "Custom":
             enabled_layers = ZIMAGE_PRESETS[preset].copy()
             layer_strengths = {i: 1.0 for i in enabled_layers}
+            # All Off preset disables other_weights too
+            other_enabled = preset != "All Off"
+            other_str = 1.0
             using_preset = preset
         else:
             # Build from individual toggles and strengths
@@ -472,6 +495,8 @@ Try disabling early layers (0-9) to reduce style bleed while keeping identity.""
                 if kwargs.get(f"layer_{i}", True):
                     enabled_layers.add(i)
                     layer_strengths[i] = kwargs.get(f"layer_{i}_str", 1.0)
+            other_enabled = other_weights
+            other_str = other_weights_str
             using_preset = None
 
         # Load LoRA - use optional path if provided, otherwise use dropdown selection
@@ -495,9 +520,9 @@ Try disabling early layers (0-9) to reduce style bleed while keeping identity.""
                 if layer_num in enabled_layers:
                     lyr_str = layer_strengths.get(layer_num, 1.0)
                     filtered_dict[key] = value * lyr_str if lyr_str != 1.0 else value
-            else:
-                # Include non-layer keys (text encoder, etc.)
-                filtered_dict[key] = value
+            elif other_enabled:
+                # Include non-layer keys (text encoder, etc.) based on other_weights setting
+                filtered_dict[key] = value * other_str if other_str != 1.0 else value
 
         original_count = len(lora_state_dict)
         filtered_count = len(filtered_dict)
@@ -581,6 +606,12 @@ class FLUXSelectiveLoRALoader:
                 "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
             })
 
+        # Other weights (keys not matching known blocks)
+        inputs["required"]["other_weights"] = ("BOOLEAN", {"default": True})
+        inputs["required"]["other_weights_str"] = ("FLOAT", {
+            "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
+        })
+
         inputs["optional"] = {
             "lora_path_opt": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer to use its selected LoRA"}),
             "analysis_json": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer for impact-colored checkboxes"}),
@@ -598,13 +629,16 @@ class FLUXSelectiveLoRALoader:
 TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA.
 Double blocks (0-18) typically have more impact than single blocks (0-37)."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, other_weights, other_weights_str, lora_path_opt=None, analysis_json=None, **kwargs):
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
         if preset != "Custom":
             enabled_blocks = FLUX_PRESETS[preset].copy()
             block_strengths = {b: 1.0 for b in enabled_blocks}
+            # All Off preset disables other_weights too
+            other_enabled = preset != "All Off"
+            other_str = 1.0
             using_preset = preset
         else:
             # Build from individual toggles and strengths
@@ -620,6 +654,8 @@ Double blocks (0-18) typically have more impact than single blocks (0-37)."""
                 if kwargs.get(block_id, True):
                     enabled_blocks.add(block_id)
                     block_strengths[block_id] = kwargs.get(f"{block_id}_str", 1.0)
+            other_enabled = other_weights
+            other_str = other_weights_str
             using_preset = None
 
         # Load LoRA - use optional path if provided, otherwise use dropdown selection
@@ -642,8 +678,8 @@ Double blocks (0-18) typically have more impact than single blocks (0-37)."""
             if block_id in enabled_blocks:
                 blk_str = block_strengths.get(block_id, 1.0)
                 filtered_dict[key] = value * blk_str if blk_str != 1.0 else value
-            elif block_id == 'other':
-                filtered_dict[key] = value
+            elif block_id == 'other' and other_enabled:
+                filtered_dict[key] = value * other_str if other_str != 1.0 else value
 
         original_count = len(lora_state_dict)
         filtered_count = len(filtered_dict)
@@ -730,6 +766,12 @@ class WanSelectiveLoRALoader:
                 "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
             })
 
+        # Other weights (keys not matching known blocks)
+        inputs["required"]["other_weights"] = ("BOOLEAN", {"default": True})
+        inputs["required"]["other_weights_str"] = ("FLOAT", {
+            "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
+        })
+
         inputs["optional"] = {
             "lora_path_opt": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer to use its selected LoRA"}),
             "analysis_json": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer for impact-colored checkboxes"}),
@@ -746,13 +788,16 @@ class WanSelectiveLoRALoader:
 
 TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, other_weights, other_weights_str, lora_path_opt=None, analysis_json=None, **kwargs):
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
         if preset != "Custom":
             enabled_blocks = WAN_PRESETS[preset].copy()
             block_strengths = {i: 1.0 for i in enabled_blocks}
+            # All Off preset disables other_weights too
+            other_enabled = preset != "All Off"
+            other_str = 1.0
             using_preset = preset
         else:
             # Build from individual toggles and strengths
@@ -762,6 +807,8 @@ TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA
                 if kwargs.get(f"block_{i}", True):
                     enabled_blocks.add(i)
                     block_strengths[i] = kwargs.get(f"block_{i}_str", 1.0)
+            other_enabled = other_weights
+            other_str = other_weights_str
             using_preset = None
 
         # Load LoRA - use optional path if provided, otherwise use dropdown selection
@@ -785,9 +832,9 @@ TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA
                 if block_num in enabled_blocks:
                     blk_str = block_strengths.get(block_num, 1.0)
                     filtered_dict[key] = value * blk_str if blk_str != 1.0 else value
-            else:
-                # Include non-block keys
-                filtered_dict[key] = value
+            elif other_enabled:
+                # Include non-block keys based on other_weights setting
+                filtered_dict[key] = value * other_str if other_str != 1.0 else value
 
         original_count = len(lora_state_dict)
         filtered_count = len(filtered_dict)
@@ -867,6 +914,12 @@ class QwenSelectiveLoRALoader:
                 "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
             })
 
+        # Other weights (keys not matching known blocks)
+        inputs["required"]["other_weights"] = ("BOOLEAN", {"default": True})
+        inputs["required"]["other_weights_str"] = ("FLOAT", {
+            "default": 1.0, "min": -2.0, "max": 2.0, "step": 0.05
+        })
+
         inputs["optional"] = {
             "lora_path_opt": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer to use its selected LoRA"}),
             "analysis_json": ("STRING", {"forceInput": True, "tooltip": "Optional: Connect from LoRA Analyzer for impact-colored checkboxes"}),
@@ -883,13 +936,16 @@ class QwenSelectiveLoRALoader:
 
 TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA."""
 
-    def load_lora(self, model, clip, lora_name, strength, preset, lora_path_opt=None, analysis_json=None, **kwargs):
+    def load_lora(self, model, clip, lora_name, strength, preset, other_weights, other_weights_str, lora_path_opt=None, analysis_json=None, **kwargs):
         # Store analysis_json for UI callback
         self._analysis_json = analysis_json
         # Use preset or custom toggles
         if preset != "Custom":
             enabled_blocks = QWEN_PRESETS[preset].copy()
             block_strengths = {i: 1.0 for i in enabled_blocks}
+            # All Off preset disables other_weights too
+            other_enabled = preset != "All Off"
+            other_str = 1.0
             using_preset = preset
         else:
             # Build from individual toggles and strengths
@@ -899,6 +955,8 @@ TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA
                 if kwargs.get(f"block_{i}", True):
                     enabled_blocks.add(i)
                     block_strengths[i] = kwargs.get(f"block_{i}_str", 1.0)
+            other_enabled = other_weights
+            other_str = other_weights_str
             using_preset = None
 
         # Load LoRA - use optional path if provided, otherwise use dropdown selection
@@ -922,9 +980,9 @@ TIP: Use 'LoRA Loader + Analyzer' first to see which blocks matter for your LoRA
                 if block_num in enabled_blocks:
                     blk_str = block_strengths.get(block_num, 1.0)
                     filtered_dict[key] = value * blk_str if blk_str != 1.0 else value
-            else:
-                # Include non-block keys
-                filtered_dict[key] = value
+            elif other_enabled:
+                # Include non-block keys based on other_weights setting
+                filtered_dict[key] = value * other_str if other_str != 1.0 else value
 
         original_count = len(lora_state_dict)
         filtered_count = len(filtered_dict)
