@@ -3,7 +3,7 @@
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-Support-yellow.svg)](https://buymeacoffee.com/lorasandlenses)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Train**, **analyze**, and **selectively load** LoRAs for **SDXL, SD 1.5, FLUX, Z-Image, Qwen Image, Qwen Image Edit, and Wan 2.2** directly inside ComfyUI. One unified interface across three training backends, plus powerful analysis and block-level loading tools.
+**Train**, **analyze**, and **selectively by Block load** LoRAs for **SDXL, SD 1.5, FLUX, Z-Image, Qwen Image, Qwen Image Edit, and Wan 2.2** directly inside ComfyUI. One unified interface across three training backends, plus powerful analysis and block-level loading tools.
 
 Capture a face, a style, or a subject from your reference images and apply it to new generations - all within the same workflow. No config files. No command line. Just connect images and go.
 
