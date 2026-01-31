@@ -14,13 +14,13 @@
 | Backend | Models | Best For |
 |---------|--------|----------|
 | **sd-scripts** | SDXL, SD 1.5 | Fast training, mature workflows, broad checkpoint compatibility |
-| **Musubi Tuner** | Z-Image, Qwen Image, Qwen Image Edit, Wan 2.2 | Cutting-edge models, smaller LoRAs, excellent VRAM efficiency |
+| **Musubi Tuner** | Z-Image, Z-Image Base, FLUX Klein 4B/9B, Qwen Image, Qwen Image Edit, Wan 2.2 | Cutting-edge models, smaller LoRAs, excellent VRAM efficiency |
 | **AI-Toolkit** | FLUX.1-dev, Z-Image, Wan 2.2 alternative training pipeline |
 
-**7 architectures. 3 training backends. 29 nodes total.**
+**8 architectures. 3 training backends. 33 nodes total.**
 
-- 8 trainer nodes
-- 11 selective loaders (5 V1 + 6 V2 combined)
+- 10 trainer nodes
+- 13 selective loaders (5 V1 + 8 V2 combined)
 - 2 analyzers (V1 + V2)
 - 6 model layer editors
 - 3 utility nodes
@@ -95,6 +95,8 @@ This node trains LoRAs on-the-fly from your images without leaving ComfyUI. SDXL
 
 **Via Musubi Tuner:**
 - Z-Image - faster training, smaller LoRA files, no diffusers dependency. Requires the de-distilled model for training, but trained LoRAs work with the regular distilled Z-Image Turbo model.
+- Z-Image Base - Train with the undistilled base model for maximum quality. Trained LoRAs work with both base and turbo models.
+- FLUX Klein 4B/9B - Black Forest Labs' fastest models. 4B (~13GB VRAM, Apache 2.0), 9B (~29GB VRAM). Uses Qwen3 text encoder and FLUX.2 VAE.
 - Qwen Image - text-to-image generation. Supports Qwen-Image, Qwen-Image-Edit, and Qwen-Image-Edit-2509 models for style/subject LoRAs.
 - Qwen Image Edit - for training image editing behaviors with source/target image pairs. Uses folder paths for paired training data.
 - Wan 2.2 - single-frame image training with High/Low/Combo noise modes. Separate block offloading control for fine-tuned VRAM management.
@@ -142,6 +144,12 @@ This node trains LoRAs on-the-fly from your images without leaving ComfyUI. SDXL
    - VAE: wan_2.2_vae.safetensors
    - T5: models_t5_umt5-xxl-enc-bf16.pth
 
+   **FLUX Klein:** Download from Hugging Face:
+   - DiT: flux-2-klein-base-4b.safetensors or flux-2-klein-base-9b.safetensors (from black-forest-labs)
+   - VAE: ae.safetensors from FLUX.2-dev (336 MB) - same VAE for all FLUX.2 variants
+   - Text Encoder: Qwen3-4B (for 4B model) or Qwen3-8B (for 9B model)
+   - Note: Use the "base" (undistilled) versions for training, not the distilled versions.
+
 **For FLUX/Z-Image/Wan training (AI-Toolkit):**
 1. Install AI-Toolkit: https://github.com/ostris/ai-toolkit
 2. Follow their install instructions
@@ -170,6 +178,8 @@ Search for these in ComfyUI:
 - **Realtime LoRA Trainer (Qwen Image - Musubi Tuner)** - Trains Qwen Image/Edit models for style/subject LoRAs
 - **Realtime LoRA Trainer (Qwen Image Edit - Musubi Tuner)** - Trains edit behaviors with source/target image pairs
 - **Realtime LoRA Trainer (Wan 2.2 - Musubi Tuner)** - Trains Wan 2.2 with High/Low/Combo noise modes
+- **Realtime LoRA Trainer (Z-Image Base - Musubi Tuner)** - Trains Z-Image using the undistilled base model
+- **Realtime LoRA Trainer (FLUX Klein - Musubi Tuner)** - Trains FLUX Klein 4B or 9B models
 - **Realtime LoRA Trainer (SDXL - sd-scripts)** - Trains using sd-scripts (SDXL)
 - **Realtime LoRA Trainer (SD 1.5 - sd-scripts)** - Trains using sd-scripts (SD 1.5)
 - **Apply Trained LoRA** - Applies the trained LoRA to your model
@@ -191,6 +201,8 @@ These combine analysis and selective loading in one node, with strength scheduli
 - **FLUX Analyzer + Selective Loader V2** - 57 blocks with strength scheduling
 - **Wan Analyzer + Selective Loader V2** - 40 blocks with strength scheduling
 - **Qwen Analyzer + Selective Loader V2** - 60 blocks with strength scheduling
+- **FLUX Klein 4B Analyzer + Selective Loader V2** - 25 blocks (5 double + 20 single) with strength scheduling
+- **FLUX Klein 9B Analyzer + Selective Loader V2** - 32 blocks (8 double + 24 single) with strength scheduling
 - **LoRA Loader + Analyzer V2** - Basic V2 analyzer without selective loading
 
 **Model Layer Editors:**
@@ -246,6 +258,9 @@ Workflows are included in the `workflows/` folder, organized by category.
 - `Wan2.2 Combo Mode_MUSUBI-TUNER-VERSION.json` - Wan Combo mode
 - `Qwen image and Qwen image edit 2509 Lora-MUSUBI.json` - Qwen Image training
 - `Qwen image Edit with Control images pairs-MUSUBI.json` - Qwen Edit with paired images
+- `Z-ImageBase_MUSUBI-TUNER-VERSION.json` - Z-Image Base training (undistilled model)
+- `FluxKleinBase4B_MUSUBI-TUNER-VERSION.json` - FLUX Klein 4B training
+- `FluxKleinBase9B_MUSUBI-TUNER-VERSION.json` - FLUX Klein 9B training
 
 **Analysis & Editing Workflows** (`workflows/Lora Analysis, Block and Model Editing/`):
 - `Lora Analysis and Block Control Demo - Z-Image.json` - V1 selective loader demo
