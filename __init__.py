@@ -5,7 +5,7 @@ Supports Z-Image, FLUX, Wan models via AI-Toolkit.
 Also supports SDXL and SD 1.5 via kohya sd-scripts.
 Includes LoRA Layer Analyzer and Selective LoRA Loader for analyzing
 and loading specific blocks/layers from LoRA files.
-and Flux Klein / VAE / Qwen3-8B debiasing & inspection tools.
+and Flux Klein / VAE / Qwen3-8B / Qwen3-4B / Z-Image debiasing & inspection tools.
 """
 from .realtime_lora_trainer import RealtimeLoraTrainer, ApplyTrainedLora
 from .sdxl_lora_trainer import SDXLLoraTrainer
@@ -31,6 +31,13 @@ from .flux_vae_debiaser_node import NODE_CLASS_MAPPINGS as FV_NODE_CLASS_MAPPING
 from .flux_vae_inspector_node import NODE_CLASS_MAPPINGS as FVI_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as FVI_NODE_DISPLAY_NAME_MAPPINGS
 from .qwen3_8b_text_encoder_debiaser_node import NODE_CLASS_MAPPINGS as QW_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as QW_NODE_DISPLAY_NAME_MAPPINGS
 from .qwen3_8b_text_encoder_inspector_node import NODE_CLASS_MAPPINGS as QWI_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as QWI_NODE_DISPLAY_NAME_MAPPINGS
+
+# Qwen3-4B Text Encoder Debiaser & Inspector
+from .qwen3_4b_text_encoder_debiaser_node import NODE_CLASS_MAPPINGS as QW4_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as QW4_NODE_DISPLAY_NAME_MAPPINGS
+from .qwen3_4b_text_encoder_inspector_node import NODE_CLASS_MAPPINGS as QW4I_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as QW4I_NODE_DISPLAY_NAME_MAPPINGS
+
+# Z-Image Deep Debiaser
+from .zimage_deep_debiaser_node import NODE_CLASS_MAPPINGS as ZI_NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS as ZI_NODE_DISPLAY_NAME_MAPPINGS
 
 # Web directory for JavaScript extensions
 WEB_DIRECTORY = "./web/js"
@@ -101,5 +108,16 @@ NODE_DISPLAY_NAME_MAPPINGS.update(FV_NODE_DISPLAY_NAME_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS.update(FVI_NODE_DISPLAY_NAME_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS.update(QW_NODE_DISPLAY_NAME_MAPPINGS)
 NODE_DISPLAY_NAME_MAPPINGS.update(QWI_NODE_DISPLAY_NAME_MAPPINGS)
+
+# Qwen3-4B Text Encoder debiaser & inspector nodes
+NODE_CLASS_MAPPINGS.update(QW4_NODE_CLASS_MAPPINGS)
+NODE_CLASS_MAPPINGS.update(QW4I_NODE_CLASS_MAPPINGS)
+
+NODE_DISPLAY_NAME_MAPPINGS.update(QW4_NODE_DISPLAY_NAME_MAPPINGS)
+NODE_DISPLAY_NAME_MAPPINGS.update(QW4I_NODE_DISPLAY_NAME_MAPPINGS)
+
+# Z-Image Deep Debiaser node
+NODE_CLASS_MAPPINGS.update(ZI_NODE_CLASS_MAPPINGS)
+NODE_DISPLAY_NAME_MAPPINGS.update(ZI_NODE_DISPLAY_NAME_MAPPINGS)
 
 __all__ = ['NODE_CLASS_MAPPINGS', 'NODE_DISPLAY_NAME_MAPPINGS', 'WEB_DIRECTORY']
