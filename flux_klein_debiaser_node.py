@@ -125,10 +125,55 @@ def _resolve_save_path(filename, save_dir_override=""):
 
 
 # ============================================================================
+# DTYPE CONVERSION UTILITIES
+# ============================================================================
+
+def _convert_dtype(tensor, target_dtype):
+    """Convert tensor to target dtype with proper handling of FP8."""
+    if target_dtype == "original":
+        return tensor
+    
+    # CRITICAL: Skip FP8 tensors - they're quantized and should stay that way
+    fp8_dtypes = []
+    if hasattr(torch, 'float8_e4m3fn'):
+        fp8_dtypes.append(torch.float8_e4m3fn)
+    if hasattr(torch, 'float8_e5m2'):
+        fp8_dtypes.append(torch.float8_e5m2)
+    
+    if tensor.dtype in fp8_dtypes:
+        # Keep FP8 tensors in their original quantized format
+        return tensor
+    
+    dtype_map = {
+        "bf16": torch.bfloat16,
+        "fp16": torch.float16,
+        "fp32": torch.float32,
+        "fp8_e4m3": torch.float8_e4m3fn if hasattr(torch, 'float8_e4m3fn') else None,
+        "fp8_e5m2": torch.float8_e5m2 if hasattr(torch, 'float8_e5m2') else None,
+    }
+    
+    target_torch_dtype = dtype_map.get(target_dtype)
+    if target_torch_dtype is None:
+        print(f"[FLUX Klein Debiaser] WARNING: {target_dtype} not supported, using original dtype")
+        return tensor
+    
+    # Normal conversion via FP32
+    return tensor.float().to(target_torch_dtype)
+
+
+
+def _get_dtype_suffix(dtype_str):
+    """Get filename suffix for dtype."""
+    if dtype_str == "original":
+        return ""
+    return f"_{dtype_str}"
+
+
+# ============================================================================
 # SAVE IMPLEMENTATION
 # ============================================================================
 
-def _build_modified_state_dict(state_dict, key_map, block_strengths):
+def _build_modified_state_dict(state_dict, key_map, block_strengths, output_dtype="original"):
     """Build a new state dict with strengths applied directly to weights.
     Returns (modified_sd, n_modified, n_total).
     """
@@ -140,19 +185,43 @@ def _build_modified_state_dict(state_dict, key_map, block_strengths):
     for bid, strength in block_strengths.items():
         for key in key_map.get(bid, []):
             key_strength[key] = strength
+    
+    # Detect FP8 dtypes
+    fp8_dtypes = []
+    if hasattr(torch, 'float8_e4m3fn'):
+        fp8_dtypes.append(torch.float8_e4m3fn)
+    if hasattr(torch, 'float8_e5m2'):
+        fp8_dtypes.append(torch.float8_e5m2)
 
     for key, tensor in state_dict.items():
+        orig_dtype = tensor.dtype
+        is_fp8 = orig_dtype in fp8_dtypes
         s = key_strength.get(key, 1.0)
+        
         if s != 1.0:
-            modified_sd[key] = (tensor.float() * s).to(tensor.dtype)
+            # Apply strength modification
+            modified_tensor = tensor.float() * s
+            
+            # For FP8 tensors: ALWAYS keep in FP8, ignore output_dtype
+            if is_fp8:
+                modified_sd[key] = modified_tensor.to(orig_dtype)
+            # For non-FP8: convert to target dtype
+            elif output_dtype == "original":
+                modified_sd[key] = modified_tensor.to(orig_dtype)
+            else:
+                modified_sd[key] = _convert_dtype(modified_tensor, output_dtype)
             n_modified += 1
         else:
-            modified_sd[key] = tensor
+            # No modification, but still convert dtype if requested (skip FP8)
+            if is_fp8 or output_dtype == "original":
+                modified_sd[key] = tensor
+            else:
+                modified_sd[key] = _convert_dtype(tensor, output_dtype)
 
     return modified_sd, n_modified, len(state_dict)
 
 
-def _build_diff_state_dict(state_dict, key_map, block_strengths):
+def _build_diff_state_dict(state_dict, key_map, block_strengths, output_dtype="original"):
     """Build a diff-only state dict: only tensors that changed, storing (w*s - w).
     Much smaller than full model. Can be applied later as patches.
     Returns (diff_sd, n_modified).
@@ -163,48 +232,70 @@ def _build_diff_state_dict(state_dict, key_map, block_strengths):
     for bid, strength in block_strengths.items():
         for key in key_map.get(bid, []):
             key_strength[key] = strength
+    
+    # Detect FP8 dtypes
+    fp8_dtypes = []
+    if hasattr(torch, 'float8_e4m3fn'):
+        fp8_dtypes.append(torch.float8_e4m3fn)
+    if hasattr(torch, 'float8_e5m2'):
+        fp8_dtypes.append(torch.float8_e5m2)
 
     for key, tensor in state_dict.items():
+        orig_dtype = tensor.dtype
+        is_fp8 = orig_dtype in fp8_dtypes
         s = key_strength.get(key, 1.0)
+        
         if s != 1.0:
-            diff = (tensor.float() * (s - 1.0)).to(tensor.dtype)
-            diff_sd[key] = diff
+            diff = tensor.float() * (s - 1.0)
+            
+            # For FP8 tensors: ALWAYS keep diff in FP8, ignore output_dtype
+            if is_fp8:
+                diff_sd[key] = diff.to(orig_dtype)
+            # For non-FP8: convert to target dtype
+            elif output_dtype == "original":
+                diff_sd[key] = diff.to(orig_dtype)
+            else:
+                diff_sd[key] = _convert_dtype(diff, output_dtype)
 
     return diff_sd, len(diff_sd)
 
 
-def _generate_filename(block_strengths, preset_name="Custom"):
+def _generate_filename(block_strengths, preset_name="Custom", output_dtype="original"):
     """Auto-generate descriptive filename from settings."""
     modified = {k: v for k, v in block_strengths.items() if v != 1.0}
     if not modified:
-        return "flux_klein_debiased_default"
+        base = "flux_klein_debiased_default"
+    else:
+        # Summarize what was changed
+        parts = ["flux_klein"]
 
-    # Summarize what was changed
-    parts = ["flux_klein"]
+        # Check for common patterns
+        sb_vals = [block_strengths.get(f"sb{i}", 1.0) for i in range(24)]
+        sb_modified = [v for v in sb_vals if v != 1.0]
 
-    # Check for common patterns
-    sb_vals = [block_strengths.get(f"sb{i}", 1.0) for i in range(24)]
-    sb_modified = [v for v in sb_vals if v != 1.0]
+        if sb_modified and len(set(sb_modified)) == 1:
+            parts.append(f"sb_all_{int(sb_modified[0]*100)}")
+        elif sb_modified:
+            parts.append(f"sb_{len(sb_modified)}mod")
 
-    if sb_modified and len(set(sb_modified)) == 1:
-        parts.append(f"sb_all_{int(sb_modified[0]*100)}")
-    elif sb_modified:
-        parts.append(f"sb_{len(sb_modified)}mod")
+        db_modified = sum(1 for b, v in block_strengths.items()
+                          if b.startswith("db") and v != 1.0)
+        if db_modified:
+            parts.append(f"db_{db_modified}mod")
 
-    db_modified = sum(1 for b, v in block_strengths.items()
-                      if b.startswith("db") and v != 1.0)
-    if db_modified:
-        parts.append(f"db_{db_modified}mod")
+        global_modified = [b for b in GLOBAL_BLOCKS
+                           if block_strengths.get(b, 1.0) != 1.0]
+        if global_modified:
+            parts.append("g_" + "_".join(global_modified[:3]))
 
-    global_modified = [b for b in GLOBAL_BLOCKS
-                       if block_strengths.get(b, 1.0) != 1.0]
-    if global_modified:
-        parts.append("g_" + "_".join(global_modified[:3]))
+        ts = time.strftime("%m%d_%H%M")
+        parts.append(ts)
 
-    ts = time.strftime("%m%d_%H%M")
-    parts.append(ts)
-
-    return "_".join(parts)
+        base = "_".join(parts)
+    
+    # Add dtype suffix if not original
+    dtype_suffix = _get_dtype_suffix(output_dtype)
+    return base + dtype_suffix
 
 
 # ============================================================================
@@ -417,6 +508,13 @@ def _apply_patches(model_patcher, key_map, block_strengths):
     cloned = model_patcher.clone()
     patches = {}
     count = 0
+    
+    # Check for FP8 support once
+    fp8_dtypes = []
+    if hasattr(torch, 'float8_e4m3fn'):
+        fp8_dtypes.append(torch.float8_e4m3fn)
+    if hasattr(torch, 'float8_e5m2'):
+        fp8_dtypes.append(torch.float8_e5m2)
 
     for bid, strength in block_strengths.items():
         if strength == 1.0:
@@ -426,7 +524,25 @@ def _apply_patches(model_patcher, key_map, block_strengths):
                 continue
             w = sd[key]
             w_cpu = w.detach().cpu() if w.device.type != "cpu" else w.detach()
-            patches[pfx + key] = (w_cpu * (strength - 1.0),)
+            original_dtype = w.dtype
+            
+            # Handle FP8 tensors: convert to BF16 for CPU operations
+            # FP8 operations are not implemented on CPU
+            if original_dtype in fp8_dtypes:
+                w_cpu = w_cpu.to(torch.bfloat16)
+            
+            # Compute the patch (difference from original weight)
+            patch = w_cpu.float() * (strength - 1.0)
+            
+            # Convert back to appropriate dtype
+            if original_dtype in fp8_dtypes:
+                # FP8 -> BF16 for the patch (FP8 not supported for patches)
+                patch = patch.to(torch.bfloat16)
+            else:
+                # Keep original dtype
+                patch = patch.to(original_dtype)
+            
+            patches[pfx + key] = (patch,)
             count += 1
 
     if patches:
@@ -674,6 +790,12 @@ class FluxKleinDeepDebiaser:
                 "tooltip": "full_model: complete ~18GB safetensors (load directly). "
                            "diff_only: small file with only changed tensors (apply as patch later).",
             }),
+            "output_dtype": (["original", "bf16", "fp16", "fp8_e4m3", "fp8_e5m2", "fp32"], {
+                "default": "original",
+                "tooltip": "Data type for saved model. 'original' preserves each tensor's source dtype. "
+                           "Other options convert non-FP8 tensors to the specified dtype. "
+                           "FP8 quantized layers are ALWAYS preserved in FP8 to maintain quantization.",
+            }),
             "save_filename": ("STRING", {
                 "default": "auto",
                 "multiline": False,
@@ -747,7 +869,7 @@ class FluxKleinDeepDebiaser:
         "  diff_only: Just the changes (small), apply as additive patch"
     )
 
-    def debias(self, model, preset, save_model, save_mode, save_filename,
+    def debias(self, model, preset, save_model, save_mode, output_dtype, save_filename,
                save_directory, **kwargs):
         print("[FLUX Klein Debiaser v2] Starting (verified architecture)...")
 
@@ -798,7 +920,7 @@ class FluxKleinDeepDebiaser:
 
                 # Resolve filename
                 if save_filename.strip().lower() in ("auto", ""):
-                    fname = _generate_filename(block_strengths, preset)
+                    fname = _generate_filename(block_strengths, preset, output_dtype)
                 else:
                     fname = save_filename.strip()
 
@@ -808,18 +930,19 @@ class FluxKleinDeepDebiaser:
 
                 full_path = _resolve_save_path(fname, save_directory)
 
-                print(f"[FLUX Klein Debiaser v2] Saving ({save_mode}) to: {full_path}")
+                print(f"[FLUX Klein Debiaser v2] Saving ({save_mode}, dtype={output_dtype}) to: {full_path}")
                 t0 = time.time()
 
                 if save_mode == "full_model":
                     modified_sd, n_mod, n_total = _build_modified_state_dict(
-                        sd, key_map, block_strengths
+                        sd, key_map, block_strengths, output_dtype
                     )
                     # Add metadata
                     metadata = {
                         "debiaser": "FluxKleinDeepDebiaser_v2",
                         "architecture": "FLUX2_KLEIN_VERIFIED",
                         "save_mode": "full_model",
+                        "output_dtype": output_dtype,
                         "modified_tensors": str(n_mod),
                         "total_tensors": str(n_total),
                         "preset": preset,
@@ -836,12 +959,13 @@ class FluxKleinDeepDebiaser:
 
                 elif save_mode == "diff_only":
                     diff_sd, n_diff = _build_diff_state_dict(
-                        sd, key_map, block_strengths
+                        sd, key_map, block_strengths, output_dtype
                     )
                     metadata = {
                         "debiaser": "FluxKleinDeepDebiaser_v2",
                         "architecture": "FLUX2_KLEIN_VERIFIED",
                         "save_mode": "diff_only",
+                        "output_dtype": output_dtype,
                         "diff_tensors": str(n_diff),
                         "preset": preset,
                         "strengths": json.dumps(
